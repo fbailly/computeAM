@@ -1,0 +1,47 @@
+version 4
+
+segment Seg1
+    rotations	xyz
+    ranges
+        -pi/2 pi/2
+        -pi/2 pi/2
+        -pi pi
+    RT 0 0 0 xyz 0 0 0
+    mass 1
+    inertia
+        0.025  0.0000	0.0000
+	    0.0000	0.025	-0.000
+	    0.0000	-0.000	0.2125
+    com  0 0 0.5
+    meshfile mesh/arm.STL
+endsegment
+
+segment Seg2
+    parent Seg1
+    rotations y
+    ranges
+        -pi/2 pi/2
+    mass 1
+    RT 0 0 0 xyz 0 0 1
+    inertia
+        0.025  0.0000	0.0000
+	    0.0000	0.025	-0.000
+	    0.0000	-0.000	0.2125
+    com  0 0 0.5
+    meshfile mesh/arm.STL
+endsegment
+
+segment Seg3
+    parent Seg2
+    rotations x
+    ranges
+        -pi/2 pi/2
+    mass 1
+    RT 0 0 0 xyz 0 0 1
+    inertia
+        0.025  0.0000	0.0000
+	    0.0000	0.025	-0.000
+	    0.0000	-0.000	0.2125
+    com  0 0 0.5
+    meshfile mesh/arm.STL
+endsegment
