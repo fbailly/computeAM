@@ -51,7 +51,7 @@ num = int(Tf*200)
 dt = Tf/num
 t = np.linspace(0, Tf, num=num)
 Q = np.vstack((-5*np.sin(2*np.pi*t), 5*t + 10*np.sin(2*np.pi*2*t)))
-model = biorbd.Model("pendulum.bioMod")
+model = biorbd.Model("2D_double_pendulum.bioMod")
 v = np.diff(Q)/dt
 a = np.diff(v)/dt
 AM = np.zeros((3, num-2))
@@ -201,6 +201,6 @@ else:
 
 
 
-b = bioviz.Viz("pendulum.bioMod")
+b = bioviz.Viz("2D_double_pendulum.bioMod")
 b.load_movement(Q)
 b.exec()
