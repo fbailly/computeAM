@@ -1,5 +1,4 @@
 import bioviz
-import casadi
 import biorbd
 import matplotlib.pyplot as plt
 from casadi import SX, vertcat, nlpsol
