@@ -75,19 +75,18 @@ def adjComputeAM(model, q, v):
     chi = 0
     for i in range(model.nbSegment()):
         cci = coms[i] - com
-        wi = model.segmentAngularVelocity(q, v, i, True).to_array()
-        vlci = model.CoMdotBySegment(q, v, i).to_array()
-        ovci = np.concatenate((wi, vlci))
-        cimo = biorbd.RotoTrans(model.globalJCS(q, i).rot(), biorbd.Vector3d(coms[i][0], coms[i][1], coms[i][2])).transpose()
-        omi = model.globalJCS(q, i)
-        cimi = rot(cimo.to_array()@omi.to_array())
-        civci = apply(cimo, ovci)
-        hroti = (model.segment(i).characteristics().inertia().to_array())@civci[:3]
-        hlini = model.segment(i).characteristics().mass()*civci[3:]
+        owi = model.segmentAngularVelocity(q, v, i, True).to_array()
+        ovlci = model.CoMdotBySegment(q, v, i).to_array()
+        ovci = np.concatenate((owi, ovlci))
+        # cimo = biorbd.RotoTrans(model.globalJCS(q, i).rot(), biorbd.Vector3d()).transpose()  #biorbd.Vector3d(coms[i][0], coms[i][1], coms[i][2])
+        # civci = apply(cimo, ovci)
+        # ovci = ovci
+        hroti = (model.segment(i).characteristics().inertia().to_array())@ovci[:3]
+        hlini = model.segment(i).characteristics().mass()*ovci[3:]
         cihi = np.concatenate((hroti, hlini))
-        cmci = biorbd.RotoTrans(model.globalJCS(q, i).rot(), biorbd.Vector3d(cci[0], cci[1], cci[2]))
+        cmci = biorbd.RotoTrans(biorbd.Rotation(), biorbd.Vector3d(cci[0], cci[1], cci[2])).transpose()
         chi += apply_f(cmci, cihi)
-    return chi
+    return chi[:3]
 
 
   # SpatialRigidBodyInertia Itot (0., Vector3d (0., 0., 0.), Matrix3d::Zero());
@@ -125,7 +124,7 @@ Q = np.vstack((
     # 0*np.pi/2*np.cos(3*np.pi*t),
     np.pi*np.cos(2*np.pi*t),
     np.pi/2*np.sin(3*np.pi*t),
-    0*np.pi/2*np.cos(4*np.pi*t),
+    np.pi/2*np.cos(4*np.pi*t),
     ))
 model = biorbd.Model("3D_3dof_arm.bioMod")
 v = np.diff(Q)/dt
