@@ -7,12 +7,48 @@ from utils import *
 CHECK_MODEL = False
 
 
+def Xtrans(v):
+    return biorbd.RotoTrans(biorbd.Rotation(), biorbd.Vector3d(v[0], v[1], v[2]))
+
+
+def applyTranspose_f(RT, f):
+    E = RT.rot().to_array()
+    r = RT.trans().to_array()
+    E_T_f = np.array([
+    E[0, 0] * f[3] + E[1, 0] * f[4] + E[2, 0] * f[5],
+    E[0, 1] * f[3] + E[1, 1] * f[4] + E[2, 1] * f[5],
+    E[0, 2] * f[3] + E[1, 2] * f[4] + E[2, 2] * f[5]
+    ])
+    return np.array([
+        E[0, 0] * f[0] + E[1, 0] * f[1] + E[2, 0] * f[2] - r[2] * E_T_f[1] + r[1] * E_T_f[2],
+        E[0, 1] * f[0] + E[1, 1] * f[1] + E[2, 1] * f[2] + r[2] * E_T_f[0] - r[0] * E_T_f[2],
+        E[0, 2] * f[0] + E[1, 2] * f[1] + E[2, 2] * f[2] - r[1] * E_T_f[0] + r[0] * E_T_f[1],
+        E_T_f[0],
+        E_T_f[1],
+        E_T_f[2]
+        ])
+
+
+def applyAdjoint_f(RT, f):
+    E = RT.rot().to_array()
+    r = RT.trans().to_array()
+    En_rxf = E @(np.array([f[0], f[1], f[2]]) - np.cross(r, np.array([f[3], f[4], f[5]])))
+    return np.array([
+        En_rxf[0],
+        En_rxf[1],
+        En_rxf[2],
+        E[0, 0] * f[3] + E[0, 1] * f[4] + E[0, 2] * f[5],
+        E[1, 0] * f[3] + E[1, 1] * f[4] + E[1, 2] * f[5],
+        E[2, 0] * f[3] + E[2, 1] * f[4] + E[2, 2] * f[5]
+        ])
+
+
 def sksym(v):
     return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
 
 
 def applyTranspose(RT, I):
-    return RT @ I @ RT.transpose
+    return RT @ I @ RT.transpose()
 
 def apply(RT, v):
     mat = np.zeros((6,6))
@@ -74,38 +110,34 @@ def adjComputeAM(model, q, v):
     coms = [j.to_array() for j in model.CoMbySegment(q)]
     chi = 0
     for i in range(model.nbSegment()):
-        cci = coms[i] - com
+        cci = - coms[i] + com
         owi = model.segmentAngularVelocity(q, v, i, True).to_array()
         ovlci = model.CoMdotBySegment(q, v, i).to_array()
-        ovci = np.concatenate((owi, ovlci))
-        # cimo = biorbd.RotoTrans(model.globalJCS(q, i).rot(), biorbd.Vector3d()).transpose()  #biorbd.Vector3d(coms[i][0], coms[i][1], coms[i][2])
-        # civci = apply(cimo, ovci)
-        # ovci = ovci
-        hroti = (model.segment(i).characteristics().inertia().to_array())@ovci[:3]
-        hlini = model.segment(i).characteristics().mass()*ovci[3:]
+        ovi = np.concatenate((owi, ovlci))
+        hroti = (model.segment(i).characteristics().inertia().to_array())@ovi[:3]
+        hlini = model.segment(i).characteristics().mass()*ovi[3:]
         cihi = np.concatenate((hroti, hlini))
-        cmci = biorbd.RotoTrans(biorbd.Rotation(), biorbd.Vector3d(cci[0], cci[1], cci[2])).transpose()
+        cmci = biorbd.RotoTrans(biorbd.Rotation(), biorbd.Vector3d(cci[0], cci[1], cci[2]))
         chi += apply_f(cmci, cihi)
     return chi[:3]
 
+def rbdlComputeAM(model, q, v):
+    com = model.CoM(q).to_array()
+    hc = np.zeros((6, model.nbSegment()))
+    htot = np.zeros((1, 6))
+    for i in range(model.nbSegment()):
+        hc[:3, i] = model.segment(i).characteristics().inertia().to_array()@model.segmentAngularVelocity(q, v, i, True).to_array()
+        hc[3:, i] = model.segment(i).characteristics().mass()*model.CoMdotBySegment(q, v, i).to_array()
+    for i in range(model.nbSegment()-1, -1, -1):
+        j = i-1
+        if j != -1:
+            hc[:, j] = hc[:, j] + applyTranspose_f(model.globalJCS(q, j).transpose().multiply(model.globalJCS(q, i)), hc[:, i])
+        else:
+            htot = htot + applyTranspose_f(model.globalJCS(q, i), hc[:, i])
+    htot = applyAdjoint_f(Xtrans(com), htot.squeeze())
+    return htot[:3]
 
-  # SpatialRigidBodyInertia Itot (0., Vector3d (0., 0., 0.), Matrix3d::Zero());
-  # SpatialVector htot (SpatialVector::Zero());
-  # SpatialVector hdot_tot (SpatialVector::Zero());
-  #
-  # for (size_t i = model.mBodies.size() - 1; i > 0; i--) {
-  #   unsigned int lambda = model.lambda[i];
-  #
-  #   if (lambda != 0) {
-  #     model.Ic[lambda] = model.Ic[lambda] + model.X_lambda[i].applyTranspose (
-  #                          model.Ic[i]);
-  #     model.hc[lambda] = model.hc[lambda] + model.X_lambda[i].applyTranspose (
-  #                          model.hc[i]);
-  #   } else {
-  #     Itot = Itot + model.X_lambda[i].applyTranspose (model.Ic[i]);
-  #     htot = htot + model.X_lambda[i].applyTranspose (model.hc[i]);
-  #   }
-  # }
+
 def compute_dh_desc(Q, V, A, L, I):
     DH = []
     for i in range(A.shape[2]-1):
@@ -122,9 +154,9 @@ t = np.linspace(0, Tf, num=num)
 Q = np.vstack((
     # 0*np.pi/2*np.sin(2*np.pi*t),
     # 0*np.pi/2*np.cos(3*np.pi*t),
-    np.pi*np.cos(2*np.pi*t),
+    np.pi*np.sin(2*np.pi*t),
     np.pi/2*np.sin(3*np.pi*t),
-    np.pi/2*np.cos(4*np.pi*t),
+    0*np.pi/2*np.cos(4*np.pi*t),
     ))
 model = biorbd.Model("3D_3dof_arm.bioMod")
 v = np.diff(Q)/dt
@@ -133,6 +165,7 @@ AM = np.zeros((3, num-2))
 myAM = np.zeros((3, num-2))
 myAM2 = np.zeros((3, num-2))
 myAM3 = np.zeros((3, num-2))
+myAM4 = np.zeros((3, num-2))
 V = np.zeros((3, model.nbQ(), num-2))
 A = np.zeros((3, model.nbQ(), num-2))
 for i in range(num-2):
@@ -142,15 +175,17 @@ for i in range(num-2):
     A[0, :, i] = a[:, i]
     model.UpdateKinematicsCustom(qi)
     AM[:, i] = model.angularMomentum(qi, vi).to_array()
-    myAM[:, i] = newComputeAM(model, qi, vi).squeeze()
-    myAM2[:, i] = computeAM(model, qi, vi).squeeze()
+    # myAM[:, i] = newComputeAM(model, qi, vi).squeeze()
+    # myAM2[:, i] = computeAM(model, qi, vi).squeeze()
     myAM3[:, i] = adjComputeAM(model, qi, vi).squeeze()
+    myAM4[:, i] = rbdlComputeAM(model, qi, vi).squeeze()
 dAM = np.diff(AM)/dt
 
 plt.plot(AM.T, label="biorbd angular momentum")
-plt.plot(myAM.T, 'x', label="my angular momentum")
-plt.plot(myAM2.T, 'o', label="my 2nd angular momentum")
+# plt.plot(myAM.T, 'x', label="my angular momentum")
+# plt.plot(myAM2.T, 'o', label="my 2nd angular momentum")
 plt.plot(myAM3.T, '+', label="my 3rd angular momentum")
+plt.plot(myAM4.T, '^', label="rbdl angular momentum")
 # plt.plot(dAM.T, 'o', label="dAM")
 plt.legend()
 plt.show()

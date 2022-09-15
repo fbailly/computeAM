@@ -1,7 +1,7 @@
 version 4
 
 segment Seg1
-    rotations	x
+    rotations	y
     ranges
         -pi/2 pi/2
         /*-pi/2 pi/2
@@ -33,7 +33,7 @@ endsegment
 
 segment Seg3
     parent Seg2
-    rotations x
+    rotations y
     ranges
         -pi/2 pi/2
     mass 1
