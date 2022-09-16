@@ -32,7 +32,7 @@ def applyTranspose_f(RT, f):
 def applyAdjoint_f(RT, f):
     E = RT.rot().to_array()
     r = RT.trans().to_array()
-    En_rxf = E @(np.array([f[0], f[1], f[2]]) - np.cross(r, np.array([f[3], f[4], f[5]])))
+    En_rxf = E@(np.array([f[0], f[1], f[2]]) - np.cross(r, np.array([f[3], f[4], f[5]])))
     return np.array([
         En_rxf[0],
         En_rxf[1],
@@ -148,7 +148,7 @@ def compute_dh_desc(Q, V, A, L, I):
 
 np.set_printoptions(formatter={'float': '{: 8.3f}'.format})
 Tf = 1
-num = int(Tf*200)
+num = int(Tf*201)
 dt = Tf/num
 t = np.linspace(0, Tf, num=num)
 Q = np.vstack((
